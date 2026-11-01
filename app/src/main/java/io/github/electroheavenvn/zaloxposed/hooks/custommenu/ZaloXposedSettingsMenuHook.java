@@ -30,6 +30,7 @@ import android.widget.Toast;
 import io.github.electroheavenvn.zaloxposed.MorpheConstants;
 import io.github.electroheavenvn.zaloxposed.hooks.BaseHook;
 import io.github.electroheavenvn.zaloxposed.hooks.ResourceHook;
+import io.github.electroheavenvn.zaloxposed.hooks.ui.CallRecordingsDialog;
 import io.github.electroheavenvn.zaloxposed.utilities.BackgroundUtils;
 import io.github.electroheavenvn.zaloxposed.utilities.Config;
 import io.github.electroheavenvn.zaloxposed.utilities.CustomFont;
@@ -451,13 +452,25 @@ public class ZaloXposedSettingsMenuHook extends BaseHook
         listItemSetting = ListItemSettingHelper.CreateNew(context);
         rootLayout.addView(listItemSetting);
         ListItemSettingHelper.SetIDTracking(listItemSetting, "");
-        ListItemSettingHelper.HideDivider(listItemSetting);
+        ListItemSettingHelper.ShowDivider(listItemSetting);
         ListItemSettingHelper.SetTitle(listItemSetting, Utils.IsEnglish() ? "Auto-record calls" : "Tự động ghi âm cuộc gọi");
         ListItemSettingHelper.SetSubtitle(listItemSetting, Utils.IsEnglish()
-            ? "Record Zalo one-to-one calls through Zalo's native recorder. WAV files are saved to Music/ZaloXposed/CallRecordings."
-            : "Ghi âm cuộc gọi Zalo 1-1 bằng bộ ghi âm gốc của Zalo. Tệp WAV lưu tại Music/ZaloXposed/CallRecordings.");
+            ? "Record Zalo one-to-one calls through Zalo's native recorder. Files are kept in Zalo's private app data."
+            : "Ghi âm cuộc gọi Zalo 1-1 bằng bộ ghi âm gốc của Zalo. Tệp lưu trong dữ liệu riêng của Zalo.");
         ListItemSettingHelper.SetSwitch(listItemSetting, Config.getEnableCallRecording());
         ListItemSettingHelper.SetCheckedChangeListener(listItemSetting, Config::setEnableCallRecording);
+
+        RelativeLayout callRecordingsItem = ListItemSettingHelper.CreateNew(context);
+        rootLayout.addView(callRecordingsItem);
+        ListItemSettingHelper.SetIDTracking(callRecordingsItem, "");
+        ListItemSettingHelper.HideDivider(callRecordingsItem);
+        ListItemSettingHelper.SetTitle(callRecordingsItem, Utils.IsEnglish()
+            ? "Call recordings" : "Bản ghi âm cuộc gọi");
+        ListItemSettingHelper.SetSubtitle(callRecordingsItem, Utils.IsEnglish()
+            ? "Listen, delete or export saved recordings. No storage permission needed."
+            : "Nghe, xóa hoặc xuất bản ghi âm đã lưu. Không cần quyền bộ nhớ.");
+        ListItemSettingHelper.SetOnClickListener(callRecordingsItem,
+            v -> CallRecordingsDialog.show(v.getContext()));
 
 
         separator = createSeparator(context);
@@ -751,8 +764,8 @@ public class ZaloXposedSettingsMenuHook extends BaseHook
         ListItemSettingHelper.ShowDivider(listItemSetting);
         ListItemSettingHelper.SetTitle(listItemSetting, Utils.IsEnglish() ? "MicroG Drive support" : "Hỗ trợ Google Drive qua MicroG");
         ListItemSettingHelper.SetSubtitle(listItemSetting, Utils.IsEnglish()
-            ? "Redirect Google accounts and Drive service binding to MicroG-RE (app.revanced). Requires MicroG installed."
-            : "Chuyển tài khoản Google và dịch vụ Drive sang MicroG-RE (app.revanced). Cần cài MicroG.");
+            ? "Use microG-RE for Google Drive account selection and sign-in. Prompts to install it when missing."
+            : "Dùng microG-RE để chọn tài khoản và đăng nhập Google Drive. Sẽ nhắc cài đặt nếu chưa có.");
         ListItemSettingHelper.SetSwitch(listItemSetting, Config.getEnableMicroGSupport());
         ListItemSettingHelper.SetCheckedChangeListener(listItemSetting, Config::setEnableMicroGSupport);
 
@@ -1543,6 +1556,14 @@ public class ZaloXposedSettingsMenuHook extends BaseHook
                 if (requestCode == BackgroundUtils.REQUEST_CODE_MANAGE_STORAGE) {
                     Activity activity = (Activity) chain.getThisObject();
                     handleFolderAccessResult(activity);
+                    return null;
+                }
+                if (requestCode == CallRecordingsDialog.REQUEST_CODE_EXPORT)
+                {
+                    int resultCode = (int)chain.getArg(1);
+                    Intent data = (Intent)chain.getArg(2);
+                    Activity activity = (Activity)chain.getThisObject();
+                    CallRecordingsDialog.handleActivityResult(activity, resultCode, data);
                     return null;
                 }
                 return chain.proceed();

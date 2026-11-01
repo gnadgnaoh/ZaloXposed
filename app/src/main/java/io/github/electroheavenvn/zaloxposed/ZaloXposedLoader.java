@@ -98,7 +98,6 @@ public class ZaloXposedLoader extends XposedModule
         hooks.add(new TestHook());
 
         hooks.add(new SpoofAppSignatureHook());
-        hooks.add(new SpoofPackageNameHook());
         hooks.add(new FixProviderHook());
     }
 

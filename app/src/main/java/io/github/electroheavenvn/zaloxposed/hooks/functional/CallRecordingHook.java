@@ -1,16 +1,8 @@
 package io.github.electroheavenvn.zaloxposed.hooks.functional;
 
-import android.content.ContentValues;
 import android.content.Context;
-import android.net.Uri;
-import android.os.Build;
-import android.os.Environment;
-import android.provider.MediaStore;
 
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.OutputStream;
 import java.io.RandomAccessFile;
 import java.lang.reflect.Method;
 import java.util.Map;
@@ -19,6 +11,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import io.github.electroheavenvn.zaloxposed.hooks.BaseHook;
+import io.github.electroheavenvn.zaloxposed.utilities.CallRecordingStore;
 import io.github.electroheavenvn.zaloxposed.utilities.Config;
 import io.github.electroheavenvn.zaloxposed.utilities.HookUtils;
 import io.github.electroheavenvn.zaloxposed.utilities.Logger;
@@ -29,14 +22,14 @@ import io.github.electroheavenvn.zaloxposed.utilities.Logger;
  * <p>Zalo's native peer already exposes a WAV recorder through
  * {@code PeerJNI.zrtc_peer_start_record_audio(long, boolean, String)}. The hook
  * starts it when the audio stream is registered and stops it on the peer
- * termination methods, then publishes the finished WAV to
- * {@code Music/ZaloXposed/CallRecordings} (MediaStore on Android 10+).</p>
+ * termination methods. Finished files stay in Zalo's app-specific data
+ * directory ({@code ZaloXposed/CallRecordings}), so no storage permission is
+ * needed; the settings menu can list, play, delete and export them.</p>
  */
 public class CallRecordingHook extends BaseHook
 {
     private static final String PEER_JNI = "com.vng.zing.vn.zrtc.PeerJNI";
     private static final String RECORD_METHOD = "zrtc_peer_start_record_audio";
-    private static final String CACHE_DIRECTORY = "zalo_call_recordings";
     private static final long WAV_READY_TIMEOUT_MS = 5000L;
     private static final long WAV_READY_POLL_MS = 120L;
 
@@ -164,16 +157,14 @@ public class CallRecordingHook extends BaseHook
             Context context = HookUtils.currentApplication();
             if (context == null)
                 return;
-            File directory = new File(context.getCacheDir(), CACHE_DIRECTORY);
+            File directory = CallRecordingStore.directory(context);
             if (!directory.exists() && !directory.mkdirs())
             {
-                Logger.e("Cannot create call recording cache directory");
+                Logger.e("Cannot create call recording directory");
                 return;
             }
-            session.startedAt = System.currentTimeMillis();
-            session.file = new File(directory, "zalo-call-" + session.startedAt
-                + "-" + HookUtils.safeName(session.direction)
-                + "-" + Long.toHexString(peerHandle) + ".wav");
+            session.file = CallRecordingStore.newRecordingFile(
+                context, session.direction, peerHandle);
             try
             {
                 recordAudio.invoke(null, peerHandle, true, session.file.getAbsolutePath());
@@ -226,23 +217,10 @@ public class CallRecordingHook extends BaseHook
         if (!awaitNativeWav(source))
         {
             Logger.e("Call recording did not finalize: " + source.getName());
-            return;
-        }
-        Context context = HookUtils.currentApplication();
-        if (context == null)
-        {
-            Logger.e("Call recording context unavailable");
-            return;
-        }
-        boolean published = publishToMediaStore(context, source);
-        if (!published)
-            published = publishToAppDirectory(context, source);
-        if (published)
-        {
-            // Keep the private copy until the public copy is complete.
             source.delete();
-            Logger.i("Call recording saved: " + source.getName());
+            return;
         }
+        Logger.i("Call recording saved: " + source.getAbsolutePath());
     }
 
     private static boolean awaitNativeWav(File file)
@@ -315,96 +293,10 @@ public class CallRecordingHook extends BaseHook
         target[offset + 3] = (byte)((value >> 24) & 0xff);
     }
 
-    private static boolean publishToMediaStore(Context context, File source)
-    {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q)
-            return false;
-        Uri uri = null;
-        try
-        {
-            ContentValues values = new ContentValues();
-            values.put(MediaStore.Audio.Media.DISPLAY_NAME, source.getName());
-            values.put(MediaStore.Audio.Media.MIME_TYPE, "audio/x-wav");
-            values.put(MediaStore.Audio.Media.RELATIVE_PATH,
-                Environment.DIRECTORY_MUSIC + "/ZaloXposed/CallRecordings");
-            values.put(MediaStore.Audio.Media.IS_PENDING, 1);
-            uri = context.getContentResolver().insert(
-                MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, values);
-            if (uri == null)
-                return false;
-            try (OutputStream output = context.getContentResolver().openOutputStream(uri))
-            {
-                if (output == null)
-                    return false;
-                copy(source, output);
-            }
-            ContentValues done = new ContentValues();
-            done.put(MediaStore.Audio.Media.IS_PENDING, 0);
-            context.getContentResolver().update(uri, done, null, null);
-            return true;
-        }
-        catch (Throwable t)
-        {
-            Logger.e(t);
-            if (uri != null)
-            {
-                try
-                {
-                    context.getContentResolver().delete(uri, null, null);
-                }
-                catch (Throwable ignored) { }
-            }
-            return false;
-        }
-    }
-
-    private static boolean publishToAppDirectory(Context context, File source)
-    {
-        try
-        {
-            File root = context.getExternalFilesDir(Environment.DIRECTORY_MUSIC);
-            if (root == null)
-                root = context.getFilesDir();
-            File directory = new File(root, "ZaloXposed/CallRecordings");
-            if (!directory.exists() && !directory.mkdirs())
-                return false;
-            File target = new File(directory, source.getName());
-            try (FileInputStream input = new FileInputStream(source);
-                 FileOutputStream output = new FileOutputStream(target))
-            {
-                copy(input, output);
-            }
-            return true;
-        }
-        catch (Throwable t)
-        {
-            Logger.e(t);
-            return false;
-        }
-    }
-
-    private static void copy(File source, OutputStream output) throws Exception
-    {
-        try (FileInputStream input = new FileInputStream(source))
-        {
-            copy(input, output);
-        }
-    }
-
-    private static void copy(java.io.InputStream input, OutputStream output) throws Exception
-    {
-        byte[] buffer = new byte[16 * 1024];
-        int read;
-        while ((read = input.read(buffer)) > 0)
-            output.write(buffer, 0, read);
-        output.flush();
-    }
-
     private static final class Session
     {
         final long peerHandle;
         volatile String direction = "unknown";
-        volatile long startedAt;
         volatile File file;
         volatile boolean started;
 

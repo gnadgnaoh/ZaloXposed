@@ -66,31 +66,26 @@ public final class CallRecordingStore
         return result;
     }
 
+    public static String displayTime(File file)
+    {
+        return new SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.US)
+            .format(new Date(timestampOf(file)));
+    }
+
+    public static String displayDirection(File file)
+    {
+        String direction = directionOf(file);
+        boolean english = Utils.IsEnglish();
+        if ("incoming".equals(direction))
+            return english ? "Incoming" : "Gọi đến";
+        if ("outgoing".equals(direction))
+            return english ? "Outgoing" : "Gọi đi";
+        return english ? "Call" : "Cuộc gọi";
+    }
+
     public static String displayTitle(File file)
     {
-        Matcher matcher = NAME_PATTERN.matcher(file.getName());
-        String direction = "unknown";
-        long timestamp = file.lastModified();
-        if (matcher.matches())
-        {
-            try
-            {
-                timestamp = Long.parseLong(matcher.group(1));
-            }
-            catch (NumberFormatException ignored) { }
-            direction = matcher.group(2);
-        }
-        String time = new SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.US)
-            .format(new Date(timestamp));
-        boolean english = Utils.IsEnglish();
-        String directionLabel;
-        if ("incoming".equals(direction))
-            directionLabel = english ? "Incoming" : "Gọi đến";
-        else if ("outgoing".equals(direction))
-            directionLabel = english ? "Outgoing" : "Gọi đi";
-        else
-            directionLabel = english ? "Call" : "Cuộc gọi";
-        return time + " · " + directionLabel;
+        return displayTime(file) + " · " + displayDirection(file);
     }
 
     public static String displayDetails(File file)
@@ -98,6 +93,36 @@ public final class CallRecordingStore
         String duration = formatDuration(file);
         String size = formatSize(file.length());
         return duration.isEmpty() ? size : duration + " · " + size;
+    }
+
+    public static String displayMeta(File file)
+    {
+        String duration = formatDuration(file);
+        String size = formatSize(file.length());
+        String direction = displayDirection(file);
+        return duration.isEmpty()
+            ? direction + " · " + size
+            : direction + " · " + duration + " · " + size;
+    }
+
+    private static String directionOf(File file)
+    {
+        Matcher matcher = NAME_PATTERN.matcher(file.getName());
+        return matcher.matches() ? matcher.group(2) : "unknown";
+    }
+
+    private static long timestampOf(File file)
+    {
+        Matcher matcher = NAME_PATTERN.matcher(file.getName());
+        if (matcher.matches())
+        {
+            try
+            {
+                return Long.parseLong(matcher.group(1));
+            }
+            catch (NumberFormatException ignored) { }
+        }
+        return file.lastModified();
     }
 
     public static String formatSize(long bytes)

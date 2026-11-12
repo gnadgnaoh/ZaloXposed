@@ -50,6 +50,16 @@ Upstream [NexAlloy/NexAlloy](https://github.com/NexAlloy/NexAlloy) has no Zalo c
 
 ![ZaloSaver.kt and ZaloJxl.kt next to MediaSaver.java](docs/evidence/05-saver.png)
 
+## 7. The feature was announced in the README, then the announcement was removed
+
+Commit `9d5b7bf` (2026-10-28), the same commit that adds the four download files, also adds a "Media download" line to the feature list in `README.md`.
+
+Two days later, commit [`128fc79`](https://github.com/soctrungkien/ZaloXposed/commit/128fc79c1ddb0cc42c1b192f3f8e84ef91bd99ba) (2026-10-30, message "hihi") deletes that line and restores the previous wording. That commit changes only `README.md` and `LiquidTabHook.java`. It does not touch the download code, and all four download files are still present at `23895ba`.
+
+The result is a fork that ships the ported download feature while its README no longer mentions it.
+
+![README.md diffs of commits 9d5b7bf and 128fc79](docs/evidence/06-readme-diff.png)
+
 ---
 
 # Bằng chứng: code download Zalo trong soctrungkien/ZaloXposed được lấy từ SexAlloy
@@ -103,3 +113,13 @@ Dự án [NexAlloy/NexAlloy](https://github.com/NexAlloy/NexAlloy) gốc không 
 ## 6. Phần lưu file và xử lý JXL
 
 ![ZaloSaver.kt và ZaloJxl.kt đặt cạnh MediaSaver.java](docs/evidence/05-saver.png)
+
+## 7. Tính năng từng được ghi trong README, sau đó dòng ghi đó bị xoá
+
+Commit `9d5b7bf` (28/10/2026), cũng là commit thêm bốn file download, có thêm dòng "Media download" vào danh sách tính năng trong `README.md`.
+
+Hai ngày sau, commit [`128fc79`](https://github.com/soctrungkien/ZaloXposed/commit/128fc79c1ddb0cc42c1b192f3f8e84ef91bd99ba) (30/10/2026, nội dung "hihi") xoá dòng đó và trả lại câu chữ cũ. Commit này chỉ sửa `README.md` và `LiquidTabHook.java`. Nó không đụng tới code download, và cả bốn file download vẫn còn nguyên ở `23895ba`.
+
+Kết quả là bản fork vẫn phát hành tính năng download được chuyển sang, trong khi README không còn nhắc tới nó.
+
+![Diff README.md của hai commit 9d5b7bf và 128fc79](docs/evidence/06-readme-diff.png)
